@@ -1,0 +1,56 @@
+calibration = "None"
+dir = "dir_path"
+ref_pop = "Nea"
+maf_threshold = 0.05
+
+[sim]
+sequence_length = 100_000
+min_allele_frequency = 0.01
+
+[sim.tranche]
+"not AI" = [
+	"HomSap/HomininComposite_4G20/Neutral/slim",
+	"HomSap/HomininComposite_4G20/Sweep/CEU",
+]
+
+AI = [
+	"HomSap/HomininComposite_4G20/AI/Nea_to_CEU",
+]
+
+[sim.extra]
+#DFE = ["HomSap/HomininComposite_4G20/DFE"]
+
+[vcf]
+file = "dir_pathdon-rec-sis_simid.vcf.gz"
+chr = [chrlist]
+phased = hap_phasing
+
+[pop]
+Nea = "dir_pathdonnor_simid.indlist"
+CEU = "dir_pathrecipient_simid.indlist"
+YRI = "dir_pathsister_simid.indlist"
+
+[train]
+num_rows = 256
+epochs = 3
+batch_size = 64
+model = "cnn"
+
+[train.af_filter]
+modelspec = "HomSap/HomininComposite_4G20/AI/Nea_to_CEU"
+pop = "CEU"
+AF = 0.25
+
+[train.cnn]
+n_conv = 7 
+n_conv_filt = 16 
+filt_size_x = 4 
+filt_size_y = 4 
+n_dense = 0  
+dense_size = 0 
+
+[apply]
+batch_size = 256
+step = 100_000
+max_missing_genotypes = 0.1
+min_seg_sites = 20

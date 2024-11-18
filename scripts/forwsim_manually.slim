@@ -1,0 +1,346 @@
+initialize() {
+	if (exists("slimgui")){
+		source("sim_1.eidos");
+	}else{
+		source(option_file);
+   }
+	//Save the results_dir path :
+	defineConstant("job_dir", results_dir+"/"+analysis+"/"+project+"/"+analysis+"_"+project+"_sim_"+i);
+	//define the donor (B2 and B1 or A2 and A1) and recipient (B2 or A2) populations  : popO = 0, popA1 = 1, popA2 = 2, popB1 = 3, popB2 = 4
+	if (recipient == "B2"){
+		defineConstant("rec", 4);
+		defineConstant("rec_s", 3);
+		defineConstant("IDrec", 8);
+		defineConstant("IDrecsis", 7);
+		if (donor == "A1") {
+			defineConstant("don", 1);
+			defineConstant("don_s", 2);
+			defineConstant("o", 0);
+			defineConstant("IDdon", 5);
+			defineConstant("IDancdon", 3);
+			defineConstant("IDdonsis",6);
+		} 
+		else if (donor == "A2") {
+			defineConstant("don", 2);
+			defineConstant("don_s", 1);
+			defineConstant("o", 0);
+			defineConstant("IDdon", 6);
+			defineConstant("IDancdon", 3);
+			defineConstant("IDdonsis",5);
+		} 
+		else if (donor == "O"){
+			defineConstant("don", 0);
+			defineConstant("IDdon", 1);
+		}
+	}
+	else if (recipient == "B1"){
+		defineConstant("rec", 3);
+		defineConstant("rec_s", 4);
+		defineConstant("IDrec", 7);
+		defineConstant("IDrecsis", 8);
+		if (donor == "A1") {
+			defineConstant("don", 1);
+			defineConstant("don_s", 2);
+			defineConstant("o", 0);
+			defineConstant("IDdon", 5);
+			defineConstant("IDancdon", 3);
+			defineConstant("IDdonsis",6);
+		} 
+		else if (donor == "A2") {
+			defineConstant("don", 2);
+			defineConstant("don_s", 1);
+			defineConstant("o", 0);
+			defineConstant("IDdon", 6);
+			defineConstant("IDancdon", 3);
+			defineConstant("IDdonsis",5);
+		} 
+		else if (donor == "O"){
+			defineConstant("don", 0);
+			defineConstant("IDdon", 1);
+		}
+	} 	
+	else if (recipient == "A2") {
+		defineConstant("rec", 2);
+		defineConstant("rec_s", 1);
+		defineConstant("IDrec", 6);
+		defineConstant("IDrecsis", 5);
+		if (donor == "B1") {
+			defineConstant("don", 3);
+			defineConstant("don_s", 4);
+			defineConstant("o", 0);
+			defineConstant("IDdon", 7);
+			defineConstant("IDancdon", 4);
+			defineConstant("IDdonsis", 8);
+		} 
+		else if (donor == "B2") {
+			defineConstant("don", 4);
+			defineConstant("don_s", 3);
+			defineConstant("o", 0);
+			defineConstant("IDdon", 8);
+			defineConstant("IDancdon", 4);
+			defineConstant("IDdonsis", 7);
+		} 
+		else if (donor == "O"){
+			defineConstant("don", 0);
+			defineConstant("IDdon", 1);
+		}
+	}
+	else if (recipient == "A1") {
+		defineConstant("rec", 1);
+		defineConstant("rec_s", 2);
+		defineConstant("IDrec", 5);
+		defineConstant("IDrecsis", 6);
+		if (donor == "B1") {
+			defineConstant("don", 3);
+			defineConstant("don_s", 4);
+			defineConstant("o", 0);
+			defineConstant("IDdon", 7);
+			defineConstant("IDancdon", 4);
+			defineConstant("IDdonsis", 8);
+		} 
+		else if (donor == "B2") {
+			defineConstant("don", 4);
+			defineConstant("don_s", 3);
+			defineConstant("o", 0);
+			defineConstant("IDdon", 8);
+			defineConstant("IDancdon", 4);
+			defineConstant("IDdonsis", 7);
+		} 
+		else if (donor == "O"){
+			defineConstant("don", 0);
+			defineConstant("IDdon", 1);
+		}
+	}
+	
+	//Keep ancestry
+	initializeSLiMOptions(keepPedigrees=T);
+	
+	//Excessively low mutation rate because SLiM requires a mutation rate to define a genomic element, but in our simulations advantageous mutations are placed manually and neutral mutations are added with msprime (mutsim.py).
+	initializeMutationRate(1e-100);
+	//Neutral mutation to define genomic element 
+	initializeMutationType("m3", 0.5, "f", 0.0);
+	//Future positivly selected mutation in the donor pop (selection coefficient == s_before_m)
+	initializeMutationType("m2", 0.5, "s", "return s_before_m;");
+
+	//Prevents the mutation from being converted into a substitution after fixation or not (T else F).  
+	m2.convertToSubstitution=F;
+	m3.convertToSubstitution=T;
+	//keep the last advantageous mutation that occur
+	m2.mutationStackPolicy ='l';
+	m3.mutationStackPolicy ='l';
+
+	//Initialise genomic element with only neutral mutation with extremely low mutation rate
+	initializeGenomicElementType("g1", c(m3), c(1.0));
+	initializeGenomicElement(g1, 0, 1);
+
+	//Initialise the recombinatin rate
+	initializeRecombinationRate(rates, ends);
+	initializeTreeSeq();
+}
+
+
+1 early() {
+	
+	//Load the msprime tree sequence file :
+	sim.readFromPopulationFile(job_dir+"/coalsim_"+analysis+"_"+project+"_sim_"+i+".trees");
+	
+	//define blocks
+	community.rescheduleScriptBlock(s2, start=generation_split_A, end=generation_split_A);//generation split A ==> A1,A2
+	community.rescheduleScriptBlock(s3, start=generation_split_B, end=generation_split_B);//generation split B ==> B1, B2
+	community.rescheduleScriptBlock(s6, start=v_mut_generation[0]+1, end=generation_split_A-1);//migration_start
+	community.rescheduleScriptBlock(s7, start=migration_start, end=migration_start);//migration_start
+	community.rescheduleScriptBlock(s8, start=migration_end, end=migration_end);//migration_end
+	community.rescheduleScriptBlock(s10, start=sample_time_d, end=sample_time_d);//generation sample ind
+	community.rescheduleScriptBlock(s11, start=generations_forward-1, end=generations_forward-1);//generation sample ind 
+	community.rescheduleScriptBlock(s12, start=generations_forward, end=generations_forward);//generations_forward
+	community.rescheduleScriptBlock(s13, start=sample_time_d_s, end=sample_time_d_s);//generation sample ind
+	community.rescheduleScriptBlock(s14, start=migration_start, end=generations_forward-2);//generation sample ind
+
+	//for each adv mutation creat a scipt block :
+	for (gen in v_mut_generation)
+		community.registerLateEvent(NULL, s5.source, gen, gen);
+	community.deregisterScriptBlock(s5);	
+}
+
+1 late(){
+	//First tree sequence save juste after the file load. 
+	sim.treeSeqOutput(job_dir+"/forwsim_start_"+analysis+"_"+project+"_sim_"+i+".trees");
+	//Define global variable to save generation of advantageous/AI mutation fixation. 
+	//Fixation in donor pop
+	defineGlobal("fixation_d_control", 0);
+	defineGlobal("fixation_d_g", "NaN");
+	//Fixation in recipient pop
+	defineGlobal("fixation_r_control", 0);
+	defineGlobal("fixation_r_g", "NaN");
+}
+
+
+
+//Add the mutations in the donor pop
+s5 999999999 early(){
+	//Take the position with the index 
+	for (pos in v_mut_position){
+		//sample 1 indiv in the donor pop
+		if (community.tick < generation_split_A){
+			target = sample(sim.subpopulations[sim.subpopulations.id==IDancdon].genomes,1);
+		}else{
+			target = sample(sim.subpopulations[sim.subpopulations.id==IDdon].genomes.genomes, 1);
+		}
+		//Add the mutation
+		target.addNewDrawnMutation(m2, pos);
+	}
+	muts = sim.mutationsOfType(m2);
+}
+
+//Crontrol presence of advantageous mutation in the donor pop and restart simulation if the mutation is lost. 
+s6  999999999 late(){
+	 muts = sim.mutationsOfType(m2);
+	 muts = muts[sim.mutationFrequencies(sim.subpopulations[sim.subpopulations.id==IDancdon], muts) > 0.0];
+	 freqmuts = sim.mutationFrequencies(sim.subpopulations[sim.subpopulations.id==IDancdon], muts);
+	 if (size(muts) >= 1)
+	 {
+		cat("Check 1 : Sufficient adv mut frequency in donor population "+donor+" at generation "+community.tick+ " : "+ freqmuts +"\n");
+		if (max(freqmuts) == 1.0 & fixation_d_control == 0){
+			defineGlobal("fixation_d_g", community.tick);
+			defineGlobal("fixation_d_control", 1);
+	 	}
+	 }
+	 else
+	 {
+	 		cat("Check 1 : Insufficient adv mut frequency in donor population "+donor+" : "+ freqmuts + "\n");
+	 		sim.readFromPopulationFile(job_dir+"/forwsim_start_"+analysis+"_"+project+"_sim_"+i+".trees");
+			defineGlobal("fixation_d_control", 0);
+			defineGlobal("fixation_d_g", "NaN");
+	 		setSeed(getSeed() + 1);
+	 }
+}
+
+//Divergence between donor pop and its sister pop
+s2 999999999 early(){ 
+	if (slim_split == 1) {
+		sim.addSubpopSplit("p5", popA1, p3);
+		sim.addSubpopSplit("p6", popA2, p3); 
+		p3.setSubpopulationSize(0);
+		}
+}
+
+//Divergence between recipient pop and its sister pop
+s3 999999999 early(){
+	if (slim_split == 1) {
+		sim.addSubpopSplit("p7", popB1, p4);
+		sim.addSubpopSplit("p8", popB2, p4); 
+		p4.setSubpopulationSize(0);
+		}
+}
+
+
+//Generation of the migration (donor to recipient pop):
+s7 999999999 early() {
+	sim.treeSeqRememberIndividuals(sim.subpopulations.individuals);
+	sim.subpopulations[sim.subpopulations.id==IDrec].setMigrationRates(sim.subpopulations[sim.subpopulations.id==IDdon], migration_rate_r);
+	sim.subpopulations[sim.subpopulations.id==IDdon].setMigrationRates(sim.subpopulations[sim.subpopulations.id==IDrec], 0.0);
+}
+
+//End of the migration :
+s8 999999999 early() {
+	sim.subpopulations[sim.subpopulations.id==IDrec].setMigrationRates(sim.subpopulations[sim.subpopulations.id==IDdon], 0.0);
+	sim.subpopulations[sim.subpopulations.id==IDdon].setMigrationRates(sim.subpopulations[sim.subpopulations.id==IDrec], 0.0);
+}
+
+//sample time donor :
+s10 999999999 early() {
+		sim.treeSeqRememberIndividuals(sim.subpopulations[sim.subpopulations.id==IDdon].sampleIndividuals(n_samples[1]));
+}
+
+//sample time donor sister :
+s13 999999999 early() {	sim.treeSeqRememberIndividuals(sim.subpopulations[sim.subpopulations.id==IDdonsis].sampleIndividuals(n_samples[0]));
+		sim.subpopulations[sim.subpopulations.id==IDdonsis].setSubpopulationSize(0);
+}
+
+//Control AI presence in recipient population
+s14  999999999 late(){
+	 muts = sim.mutationsOfType(m2);
+	 muts = muts[sim.mutationFrequencies(sim.subpopulations[sim.subpopulations.id==IDrec], muts) > 0.0];
+	 freqmuts = sim.mutationFrequencies(sim.subpopulations[sim.subpopulations.id==IDrec], muts);
+	 if (size(muts) >= 1)
+	 {
+		cat("Check 2 : Sufficient AI mut frequency in recipient population "+recipient+" at generation "+community.tick+ " : "+ freqmuts +"\n");
+		if (max(freqmuts) == 1.0 & fixation_r_control == 0){
+			defineGlobal("fixation_r_g", community.tick);
+			defineGlobal("fixation_r_control", 1);
+	 	}
+	 }
+	 else
+	 {
+		cat("Check 2 : Insufficient AI mut frequency in population "+recipient+" at generation "+community.tick+ " : "+ freqmuts +"\n");
+		sim.readFromPopulationFile(job_dir+"/forwsim_start_"+analysis+"_"+project+"_sim_"+i+".trees");
+		defineGlobal("fixation_r_control", 0);
+		defineGlobal("fixation_r_g", "NaN");
+		defineGlobal("fixation_d_control", 0);
+		defineGlobal("fixation_d_g", "NaN");
+		setSeed(getSeed() + 1);
+	 }	
+}
+
+//Latent variable and save sampled individual
+s11 999999999 early(){
+
+		///Latent variable for the recipient population :
+		// introgressed advantageous mutation (m2) from ancestral and donor pop introgressed in recipient pop with N*s>1. 
+		m2_in_rec = sim.subpopulations[sim.subpopulations.id==IDrec].genomes.mutationsOfType(m2)[(sim.subpopulations[sim.subpopulations.id==IDrec].genomes.mutationsOfType(m2).subpopID == IDdon | sim.subpopulations[sim.subpopulations.id==IDrec].genomes.mutationsOfType(m2).subpopID == IDancdon) & sim.subpopulations[sim.subpopulations.id==IDrec].genomes.mutationsOfType(m2).selectionCoeff*sim.subpopulations[sim.subpopulations.id==IDrec].individualCount>1]; 
+
+		///Creat frequency file of donor mut in recievor pop (with mutation id, mutation position, mutation frequency in recipient pop, selection coef and generation of apparition)
+		//Remove deplicate introgressed mutation  
+		uniq_m2_in_rec = unique(m2_in_rec);
+		//Frequency of this mutation :
+		mutation_frequency = sim.mutationFrequencies(sim.subpopulations[sim.subpopulations.id==IDrec], uniq_m2_in_rec);
+
+		//Write file with all adaptive introgressed mutation informations:
+		writeFile(job_dir+"/forwsim_freq_mut_don_in_rec_"+analysis+"_"+project+"_sim_"+i+".txt", paste("mutation_id", "position", "frequency", "selection_coef", "generation_origin", sep=","));
+		if (size(uniq_m2_in_rec.id) > 0){ 
+			matrix_frequency=cbind(matrix(asFloat(uniq_m2_in_rec.id)),matrix(asFloat(uniq_m2_in_rec.position)),matrix(asFloat(mutation_frequency)), matrix(asFloat(uniq_m2_in_rec.selectionCoeff)),matrix(asFloat(uniq_m2_in_rec.originTick)));
+			for (nbr in 0:(dim(matrix_frequency)[0]-1)){
+				line = paste(matrix_frequency[nbr,],sep=",");
+				writeFile(job_dir+"/forwsim_freq_mut_don_in_rec_"+analysis+"_"+project+"_sim_"+i+".txt",line, append = T);}}
+		else {
+				line = paste("NaN","NaN","NaN","NaN","NaN",sep=",");
+				writeFile(job_dir+"/forwsim_freq_mut_don_in_rec_"+analysis+"_"+project+"_sim_"+i+".txt",line, append = T);}
+		
+		//sampled individual for outgroup, recipient sister and sister population:
+		sim.treeSeqRememberIndividuals(p1.sampleIndividuals(n_samples[4])); //Pop0 p0
+		sim.treeSeqRememberIndividuals(p7.sampleIndividuals(n_samples[2])); //PopB1 p3
+		sample_B2 = p8.sampleIndividuals(n_samples[3]);
+		
+		//AI mutation in sampled recipient individual :
+		mut_do_in_rec_samp          = unique(sample_B2.genomes.mutationsOfType(m2)[(sample_B2.genomes.mutationsOfType(m2).subpopID == IDdon | sample_B2.genomes.mutationsOfType(m2).subpopID == IDancdon) & sample_B2.genomes.mutationsOfType(m2).selectionCoeff*sim.subpopulations[sim.subpopulations.id==IDrec].individualCount>1]);
+		nbr_uniq_mut_do_in_rec_samp = size(mut_do_in_rec_samp);
+		number_mut_in_samp          = sum(sample_B2.genomes.mutationCountsInGenomes(unique(sample_B2.genomes.mutations)));
+		freq_uniq_in_rec_samp       = sample_B2.genomes.mutationCountsInGenomes(mut_do_in_rec_samp)/size(sample_B2.genomes);
+
+		
+		writeFile(job_dir+"/forwsim_freq_mut_don_in_rec_samp_"+analysis+"_"+project+"_sim_"+i+".txt", paste("mutation_id_samp", "position_samp", "frequency_samp", "selection_coef_samp", "generation_origin_samp", sep=","));
+		if (size(mut_do_in_rec_samp.id) > 0){ 
+			matrix_frequency_samp=cbind(matrix(asFloat(mut_do_in_rec_samp.id)),matrix(asFloat(mut_do_in_rec_samp.position)),matrix(asFloat(freq_uniq_in_rec_samp)), matrix(asFloat(mut_do_in_rec_samp.selectionCoeff)),matrix(asFloat(mut_do_in_rec_samp.originTick)));
+			for (nbr in 0:(dim(matrix_frequency_samp)[0]-1)){
+				line = paste(matrix_frequency_samp[nbr,],sep=",");
+				writeFile(job_dir+"/forwsim_freq_mut_don_in_rec_samp_"+analysis+"_"+project+"_sim_"+i+".txt",line, append = T);}}
+		else {
+				line = paste("NaN","NaN","NaN","NaN","NaN",sep=",");
+				writeFile(job_dir+"/forwsim_freq_mut_don_in_rec_samp_"+analysis+"_"+project+"_sim_"+i+".txt",line, append = T);}
+
+		//Dictionnary with AI mutation number in recipient individuals and fixation time
+		dico_test           = Dictionary("num_sim", i, "uniq_mut_do_in_rec_s", nbr_uniq_mut_do_in_rec_samp, "fixation_r_g", fixation_r_g, "fixation_d_g", fixation_d_g);
+		data_test_final     = DataFrame(dico_test);
+		data_serialize_test = data_test_final.serialize('csv');
+		writeFile(job_dir+"/forwsim_latent_variable_"+analysis+"_"+project+"_sim_"+i+".txt", data_serialize_test);
+
+		//Remeber sampled individual 
+		sim.treeSeqRememberIndividuals(sample_B2); //PopB2 p4
+		sim.subpopulations.setSubpopulationSize(0);
+} 
+
+//Saves the simulation in a tree sequence file : 
+s12 999999999  early() { 
+					sim.treeSeqOutput(job_dir+"/forwsim_final_"+analysis+"_"+project+"_sim_"+i+".trees");
+					sim.simulationFinished();
+}
